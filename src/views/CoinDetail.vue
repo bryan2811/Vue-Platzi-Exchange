@@ -77,21 +77,54 @@
         :max="max"
         :data="history.map(h => [h.date, parseFloat(h.priceUsd).toFixed(2)])"
       />
+
+      <h3 class="text-xl my-10">Mejores Ofertas de Cambio</h3>
+      <table>
+        <tr
+          v-for="m in markets"
+          :key="`${m.exchangeId}-${m.priceUsd}`"
+          class="border-b"
+        >
+          <td>
+            <b> {{ m.exchangeId }} </b>
+          </td>
+          <td>
+            {{ m.priceUsd | dollar }}
+          </td>
+          <td>{{ m.baseSymbol }} / {{ m.quoteSymbol }}</td>
+          <td>
+            <px-button
+              :is-loading="m.isLoading || false"
+              v-if="!m.url"
+              @custom-click="getWebSite(m)"
+            >
+              <slot>Obtener Link</slot>
+            </px-button>
+            <a v-else class="hover:underline text-green-600" target="_blank">
+              {{ m.url }}
+            </a>
+          </td>
+        </tr>
+      </table>
     </template>
   </div>
 </template>
 
 <script>
+import PxButton from '@/components/PxButton'
 import API from '@/API'
 
 export default {
   name: 'CoinDetail',
 
+  components: { PxButton },
+
   data() {
     return {
       isLoading: false,
       asset: {},
-      history: []
+      history: [],
+      markets: []
     }
   },
 
@@ -121,13 +154,32 @@ export default {
   },
 
   methods: {
+    getWebSite(exchange) {
+      this.$set(exchange, 'isLoading', true)
+
+      return API.getExchange(exchange.exchangeId)
+        .then(res => {
+          this.$set(exchange, 'url', res.exchangeUrl)
+        })
+        .finally(() => {
+          this.$set(exchange, 'isLoading', false)
+        })
+    },
+
     getCoin() {
       const id = this.$route.params.id
       this.isLoading = true
-      Promise.all([API.getAsset(id), API.getAssetHistory(id)])
-        .then(([asset, history]) => {
+      Promise.all([
+        API.getAsset(id),
+        API.getAssetHistory(id),
+        API.getMarkets(id),
+        API.getExchange(id)
+      ])
+        .then(([asset, history, markets, exchange]) => {
           this.asset = asset
           this.history = history
+          this.markets = markets
+          this.exchange = exchange
         })
         .finally(() => (this.isLoading = false))
     }
